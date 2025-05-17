@@ -1,56 +1,73 @@
 # Access Control System
 
-A web-based access control system that uses a Shelly device with Tasmota firmware to control a magnetic lock. The system provides a simple PIN code interface for locking and unlocking doors.
+A web-based access control system that uses a Shelly device flashed with Tasmota to control a magnetic lock. The system provides a PIN code interface for locking and unlocking doors, with the web interface embedded directly in the Tasmota firmware.
 
 ## Features
 
-- Web-based interface for controlling magnetic locks
-- PIN code authentication system
+- Custom web interface embedded in Tasmota firmware
+- PIN code authentication system with master code for administration
 - Real-time lock status monitoring
 - Mobile-responsive design
 - Secure access control
-- Easy setup and configuration
-- Custom webpage embedded in Tasmota firmware
+- Support for multiple PIN codes
+- Automatic re-locking capability
 
 ## Prerequisites
 
 - Shelly device (compatible with Tasmota firmware)
 - Magnetic lock
-- Basic knowledge of networking and web development
+- Development environment for Tasmota firmware modification
+- Basic knowledge of C++ and web development
 
 ## Installation
 
-1. Flash your Shelly device with Tasmota firmware
-2. Configure your Shelly device's network settings
-3. Upload the custom webpage to the device using Tasmota's web interface:
-   - Go to Configuration -> Configure Module
-   - Scroll down to "Custom Page"
-   - Paste the HTML code for the access control interface
-   - Save the configuration
-4. Configure the access control settings
+1. Clone the Tasmota repository:
+   ```sh
+   git clone https://github.com/arendst/Tasmota.git
+   ```
+
+2. Modify the Tasmota firmware:
+   - Locate the web server handler in `tasmota/xdrv_01_webserver.ino`
+   - Add the custom endpoint handler for the lock control page
+   - Implement PIN management logic
+   - Add lock status monitoring
+
+3. Compile and flash the modified firmware to your Shelly device
+
+4. Configure the device:
+   - Set up network settings
+   - Configure the master code
+   - Set up initial PIN codes
 
 ## Configuration
 
-1. Set up your Shelly device's IP address in the configuration
-2. Configure your PIN codes in the custom webpage
-3. Set up any additional security measures
-4. Configure the relay settings for the magnetic lock
+1. Access the device's web interface at `http://<device-ip>/lock`
+2. Use the master code to manage PIN codes
+3. Configure the relay settings for the magnetic lock
+4. Set up any additional security measures
 
 ## Usage
 
-1. Access the device's IP address through your browser
-2. The custom webpage will load automatically
-3. Enter the PIN code to unlock the door
-4. The system will automatically lock after a configured time period
+1. Access the lock control page at `http://<device-ip>/lock`
+2. Enter a valid PIN code to unlock the door
+3. The system will automatically lock after a configured time period
+4. Use the master code to manage PIN codes through the web interface
 
 ## Security Considerations
 
-- Change default PIN codes
+- Change the default master code before deployment
+- Enable Tasmota's web authentication
 - Use HTTPS for secure communication
-- Regularly update firmware and software
+- Regularly update firmware
 - Monitor access logs
-- Implement additional security measures as needed
+- Do not display PINs in production
 - Keep your device's firmware up to date
+
+## Limitations
+
+- Web interface must be embedded in the firmware
+- No support for uploading arbitrary HTML files
+- Access limited to local network unless ports are opened (not recommended)
 
 ## Contributing
 
@@ -66,6 +83,6 @@ For support, please open an issue in the GitHub repository or contact the mainta
 
 ## Acknowledgments
 
-- Tasmota project for firmware support and custom webpage feature
+- Tasmota project for firmware support
 - Shelly for hardware
 - Contributors and users of the system 
