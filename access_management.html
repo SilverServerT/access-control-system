@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Magnetic Lock Control</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 400px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #ccc; padding: 24px; }
+    h1 { text-align: center; }
+    .btn { display: block; width: 100%; margin: 12px 0; padding: 14px; font-size: 1.1em; border: none; border-radius: 6px; background: #1976d2; color: #fff; cursor: pointer; transition: background 0.2s; }
+    .btn:hover { background: #1565c0; }
+    .timer { text-align: center; font-size: 1.2em; margin: 10px 0 20px 0; color: #333; }
+    .reason { font-size: 0.95em; color: #666; text-align: center; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Lock Control</h1>
+    <div class="reason">Quick unlock (10 seconds)</div>
+    <button class="btn" onclick="unlockForSeconds(10)">Unlock for 10 seconds</button>
+    <div class="reason">Leave open for 30 minutes (e.g. delivery)</div>
+    <button class="btn" onclick="unlockForSeconds(1800)">Unlock for 30 minutes</button>
+    <div class="reason">Leave open until sunset (e.g. event, cleaning)</div>
+    <button class="btn" onclick="unlockUntilSunset()">Unlock until sunset</button>
+    <div class="timer" id="timerDisplay"></div>
+  </div>
+  <script>
+    // Replace with your Home Assistant URL and long-lived token
+    const HA_URL = 'http://<home_assistant_ip>:8123';
+    const HA_TOKEN = '<your_long_lived_access_token>';
+    const ENTITY_ID = 'switch.tasmota';
+    let timerInterval = null;
+    let unlockEnd = null;
+
+    function callService(service, data) {
+      return fetch(`${HA_URL}/api/services/${service.split('.')[0]}/${service.split('.')[1]}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HA_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+    }
+
+    function unlockForSeconds(seconds) {
+      clearInterval(timerInterval);
+      callService('switch.turn_off', { entity_id: ENTITY_ID });
+      unlockEnd = Date.now() + seconds * 1000;
+      updateTimerDisplay(seconds);
+      timerInterval = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((unlockEnd - Date.now()) / 1000));
+        updateTimerDisplay(remaining);
+        if (remaining <= 0) {
+          callService('switch.turn_on', { entity_id: ENTITY_ID });
+          clearInterval(timerInterval);
+          updateTimerDisplay(0);
+        }
+      }, 1000);
+    }
+
+    function unlockUntilSunset() {
+      // Fetch sunset time from Home Assistant
+      fetch(`${HA_URL}/api/states/sun.sun`, {
+        headers: { 'Authorization': `Bearer ${HA_TOKEN}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          const sunset = new Date(data.attributes.next_setting);
+          const now = new Date();
+          const seconds = Math.max(0, Math.floor((sunset - now) / 1000));
+          if (seconds > 0) {
+            unlockForSeconds(seconds);
+          } else {
+            alert('Sunset already passed!');
+          }
+        });
+    }
+
+    function updateTimerDisplay(seconds) {
+      const timer = document.getElementById('timerDisplay');
+      if (seconds > 0) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        timer.textContent = `Lock will re-engage in ${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm ' : ''}${s}s`;
+      } else {
+        timer.textContent = '';
+      }
+    }
+
+    // TODO: Optionally, poll lock state and show if currently locked/unlocked
+  </script>
+</body>
+</html> 

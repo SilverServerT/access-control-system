@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magnetic Lock Control</title>
+  <style>
+    :root {
+      --primary: #1976d2;
+      --primary-dark: #1565c0;
+      --accent: #388e3c;
+      --danger: #d32f2f;
+      --bg: #f4f7fa;
+      --card-bg: #fff;
+      --shadow: 0 4px 24px rgba(0,0,0,0.08);
+      --radius: 18px;
+      --transition: 0.2s cubic-bezier(.4,0,.2,1);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .container {
+      max-width: 420px;
+      margin: 40px auto;
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 32px 20px 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 70vh;
+      transition: border-color 0.3s;
+      border: 4px solid #bbb;
+    }
+    .container.locked {
+      border-color: #43a047;
+    }
+    .container.unlocked {
+      border-color: #e53935;
+    }
+    .container.unknown {
+      border-color: #bbb;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.1em;
+      margin-bottom: 10px;
+      color: var(--primary-dark);
+      letter-spacing: 1px;
+    }
+    .status {
+      display: none;
+    }
+    .lock-icon-container svg {
+      transition: fill 0.3s, stroke 0.3s;
+      width: 3.5rem;
+      height: 3.5rem;
+    }
+    .status-text {
+      text-align: center;
+    }
+    .loading {
+      text-align: center;
+      color: #888;
+      font-size: 1em;
+      margin-bottom: 10px;
+      width: 100%;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      margin: 14px 0;
+      padding: 18px 0;
+      font-size: 1.15em;
+      border: none;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition);
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.08);
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn:disabled {
+      background: #b0b0b0;
+      cursor: not-allowed;
+      color: #eee;
+    }
+    .toggle-btn {
+      background: var(--accent);
+      margin-bottom: 18px;
+    }
+    .toggle-btn.unlocked {
+      background: var(--danger);
+    }
+    .reason {
+      font-size: 1em;
+      color: #666;
+      text-align: center;
+      margin-bottom: 6px;
+      margin-top: 8px;
+    }
+    .timer {
+      text-align: center;
+      font-size: 1.15em;
+      margin: 18px 0 0 0;
+      color: var(--primary-dark);
+      font-weight: 500;
+      min-height: 1.5em;
+    }
+    @media (max-width: 600px) {
+      .container {
+        max-width: 100vw;
+        margin: 0;
+        padding: 4vw 2vw 4vw 2vw;
+        min-height: 100vh;
+        border-width: 2.5vw;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 1.1em;
+      }
+      .lock-icon-container svg {
+        width: 2.8rem !important;
+        height: 2.8rem !important;
+      }
+      .status-text {
+        font-size: 1em !important;
+      }
+      .btn {
+        font-size: 1em;
+        padding: 8px 0;
+        margin: 10px 0;
+      }
+      .timer {
+        font-size: 0.95em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container unknown" id="mainContainer">
+    <h1>Magnetic Lock</h1>
+    <div class="lock-icon-container" style="display:flex;flex-direction:column;align-items:center;margin-bottom:10px;">
+      <span id="lockIcon"></span>
+      <div id="lockStatusText" class="status-text" style="margin-top:0.5em;font-size:1.2em;font-weight:600;letter-spacing:0.5px;color:#444;">Loading status...</div>
+    </div>
+    <div class="loading" id="loadingIndicator">Please wait, fetching lock status...</div>
+    <button class="btn toggle-btn" id="toggleLockBtn" onclick="toggleLock()" disabled>Toggle Lock</button>
+    <div class="reason">Quick unlock (10 seconds)</div>
+    <button class="btn" id="btn10s" onclick="unlockForSeconds(10)" disabled>Unlock for 10 seconds</button>
+    <div class="reason">Leave open for 30 minutes (e.g. delivery)</div>
+    <button class="btn" id="btn30min" onclick="unlockForSeconds(1800)" disabled>Unlock for 30 minutes</button>
+    <div class="reason">Leave open until sunset (e.g. event, cleaning)</div>
+    <button class="btn" id="btnSunset" onclick="unlockUntilSunset()" disabled>Unlock until sunset</button>
+    <div class="timer" id="timerDisplay"></div>
+  </div>
+  <script>
+    // Replace with your Home Assistant URL and long-lived token
+    const HA_URL = 'https://ha.silverserver.nl';
+    const HA_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJiMTFjOTAxMzk0ZWI0ZTk4YTdhY2ZiMDNmN2NhNzQyNiIsImlhdCI6MTc0NjY0OTIyNSwiZXhwIjoyMDYyMDA5MjI1fQ.s3ccw_z17XxiJRMEO-29txiVKktbYgFNPL-X-pvl_JI';
+    const ENTITY_ID = 'switch.tasmota';
+    let timerInterval = null;
+    let unlockEnd = null;
+    let currentState = null;
+    let controlsLocked = true;
+
+    function setControlsEnabled(enabled) {
+      document.getElementById('toggleLockBtn').disabled = !enabled;
+      document.getElementById('btn10s').disabled = !enabled;
+      document.getElementById('btn30min').disabled = !enabled;
+      document.getElementById('btnSunset').disabled = !enabled;
+    }
+
+    function showLoading(show) {
+      document.getElementById('loadingIndicator').style.display = show ? 'block' : 'none';
+    }
+
+    function callService(service, data) {
+      setControlsEnabled(false);
+      showLoading(true);
+      return fetch(`${HA_URL}/api/services/${service.split('.')[0]}/${service.split('.')[1]}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HA_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      }).then(() => {
+        // After service call, re-fetch state to re-enable controls
+        setTimeout(() => getLockState(false), 1000);
+      });
+    }
+
+    // backgroundPoll: true = background poll, false = user action/initial load
+    function getLockState(backgroundPoll = false) {
+      if (!backgroundPoll) {
+        setControlsEnabled(false);
+        showLoading(true);
+      }
+      fetch(`${HA_URL}/api/states/${ENTITY_ID}`, {
+        headers: { 'Authorization': `Bearer ${HA_TOKEN}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          currentState = data.state;
+          updateLockStatus();
+          if (!backgroundPoll) {
+            setControlsEnabled(true);
+            showLoading(false);
+          }
+        })
+        .catch(() => {
+          document.getElementById('lockStatusText').textContent = 'Error fetching status';
+          document.getElementById('lockStatusText').className = 'status-text';
+          if (!backgroundPoll) {
+            setControlsEnabled(false);
+            showLoading(true);
+          }
+        });
+    }
+
+    function updateLockStatus() {
+      const statusText = document.getElementById('lockStatusText');
+      const iconSpan = document.getElementById('lockIcon');
+      const toggleBtn = document.getElementById('toggleLockBtn');
+      const mainContainer = document.getElementById('mainContainer');
+      if (currentState === 'on') {
+        statusText.textContent = 'Locked';
+        iconSpan.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#388e3c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:3.5em;height:3.5em;"><rect x="3" y="11" width="18" height="10" rx="2" fill="#43a047" stroke="#388e3c"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#388e3c" fill="none"/><circle cx="12" cy="16" r="2" fill="#fff"/></svg>`;
+        toggleBtn.textContent = 'Unlock';
+        toggleBtn.classList.remove('unlocked');
+        mainContainer.className = 'container locked';
+      } else if (currentState === 'off') {
+        statusText.textContent = 'Unlocked';
+        iconSpan.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#d32f2f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:3.5em;height:3.5em;"><rect x="3" y="11" width="18" height="10" rx="2" fill="#e53935" stroke="#d32f2f"/><path d="M7 11V7a5 5 0 0 1 10 0" stroke="#d32f2f" fill="none"/><circle cx="12" cy="16" r="2" fill="#fff"/></svg>`;
+        toggleBtn.textContent = 'Lock';
+        toggleBtn.classList.add('unlocked');
+        mainContainer.className = 'container unlocked';
+      } else {
+        statusText.textContent = 'Unknown';
+        iconSpan.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:3.5em;height:3.5em;"><rect x="3" y="11" width="18" height="10" rx="2" fill="#eee" stroke="#888"/><path d="M7 11V7a5 5 0 0 1 10 0" stroke="#888" fill="none"/><circle cx="12" cy="16" r="2" fill="#888"/></svg>`;
+        toggleBtn.textContent = 'Toggle Lock';
+        toggleBtn.classList.remove('unlocked');
+        mainContainer.className = 'container unknown';
+      }
+    }
+
+    function toggleLock() {
+      if (currentState === 'on') {
+        callService('switch.turn_off', { entity_id: ENTITY_ID });
+      } else if (currentState === 'off') {
+        callService('switch.turn_on', { entity_id: ENTITY_ID });
+      }
+    }
+
+    function unlockForSeconds(seconds) {
+      clearInterval(timerInterval);
+      callService('switch.turn_off', { entity_id: ENTITY_ID });
+      unlockEnd = Date.now() + seconds * 1000;
+      updateTimerDisplay(seconds);
+      timerInterval = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((unlockEnd - Date.now()) / 1000));
+        updateTimerDisplay(remaining);
+        if (remaining <= 0) {
+          callService('switch.turn_on', { entity_id: ENTITY_ID });
+          clearInterval(timerInterval);
+          updateTimerDisplay(0);
+        }
+      }, 1000);
+    }
+
+    function unlockUntilSunset() {
+      setControlsEnabled(false);
+      showLoading(true);
+      // Fetch sunset time from Home Assistant
+      fetch(`${HA_URL}/api/states/sun.sun`, {
+        headers: { 'Authorization': `Bearer ${HA_TOKEN}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          const sunset = new Date(data.attributes.next_setting);
+          const now = new Date();
+          const seconds = Math.max(0, Math.floor((sunset - now) / 1000));
+          if (seconds > 0) {
+            unlockForSeconds(seconds);
+          } else {
+            alert('Sunset already passed!');
+            setControlsEnabled(true);
+            showLoading(false);
+          }
+        })
+        .catch(() => {
+          alert('Error fetching sunset time!');
+          setControlsEnabled(true);
+          showLoading(false);
+        });
+    }
+
+    function updateTimerDisplay(seconds) {
+      const timer = document.getElementById('timerDisplay');
+      if (seconds > 0) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        timer.textContent = `Lock will re-engage in ${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'm ' : ''}${s}s`;
+      } else {
+        timer.textContent = '';
+      }
+    }
+
+    // Poll lock state every 5 seconds (background poll)
+    setInterval(() => getLockState(true), 5000);
+    // Initial state fetch and lock controls
+    setControlsEnabled(false);
+    showLoading(true);
+    getLockState(false);
+  </script>
+</body>
+</html> 

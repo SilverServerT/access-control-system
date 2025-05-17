@@ -1,0 +1,38 @@
+switch:
+  - platform: mqtt
+    name: "Magnetic Lock"
+    state_topic: "stat/tasmota_maglock/POWER"
+    command_topic: "cmnd/tasmota_maglock/POWER"
+    payload_on: "ON"
+    payload_off: "OFF"
+    state_on: "ON"
+    state_off: "OFF"
+    optimistic: false
+    qos: 1
+    retain: false
+
+input_text:
+  allowed_codes:
+    name: Allowed Codes
+    initial: "123456,654321,112233"
+
+automation:
+  - alias: "Unlock on Valid Code"
+    trigger:
+      - platform: mqtt
+        topic: "keylock/access_code"
+    condition:
+      - condition: template
+        value_template: >
+          {{ trigger.payload in state('input_text.allowed_codes').split(',') }}
+      - condition: state
+        entity_id: switch.tasmota
+        state: "on"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.tasmota
+      - delay: "00:00:10"  # Unlock duration
+      - service: switch.turn_on
+        target:
+          entity_id: switch.tasmota

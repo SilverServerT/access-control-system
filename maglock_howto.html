@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mag Lock Tasmota How-To</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f6fb;
+            margin: 0;
+            padding: 0;
+            color: #2a3a5e;
+        }
+        .main {
+            max-width: 820px;
+            margin: 40px auto 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 2.5rem 2.5rem 2rem 2.5rem;
+        }
+        h1, h2, h3 {
+            color: #2a3a5e;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 0.5em;
+        }
+        h2 {
+            margin-top: 2.2em;
+            border-bottom: 1px solid #e0e4ea;
+            padding-bottom: 0.3rem;
+            font-size: 1.3rem;
+        }
+        h3 {
+            margin-top: 1.5em;
+            font-size: 1.1rem;
+        }
+        pre, code {
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 0.7em 1em;
+            font-size: 1em;
+            color: #3a4a6a;
+            overflow-x: auto;
+        }
+        pre {
+            margin: 1em 0;
+        }
+        code.language-cpp {
+            display: block;
+            white-space: pre;
+        }
+        code.language-python {
+            display: block;
+            white-space: pre;
+        }
+        ul, ol {
+            margin-left: 1.5em;
+        }
+        .note {
+            background: #e3f2fd;
+            border-left: 4px solid #5b7fff;
+            padding: 1em 1.2em;
+            border-radius: 8px;
+            margin: 1.5em 0;
+            color: #1a2a4a;
+        }
+        .warning {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 1em 1.2em;
+            border-radius: 8px;
+            margin: 1.5em 0;
+            color: #7a4a00;
+        }
+        .troubleshoot {
+            background: #fbe9e7;
+            border-left: 4px solid #d32f2f;
+            padding: 1em 1.2em;
+            border-radius: 8px;
+            margin: 1.5em 0;
+            color: #b71c1c;
+        }
+        a {
+            color: #5b7fff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 600px) {
+            .main {
+                padding: 1rem 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="main">
+    <h1>Mag Lock Control with Tasmota: Step-by-Step How-To</h1>
+    <div class="note">
+        <b>Overview:</b> This guide explains how to use a Shelly device flashed with Tasmota to control a mag lock, including a custom web page for PIN-based access and admin management. It covers both firmware (C++) and Berry scripting approaches, with security and troubleshooting tips.
+    </div>
+
+    <h2>1. Preparation</h2>
+    <ol>
+        <li>Flash your Shelly device with <b>Tasmota</b> firmware.</li>
+        <li>Connect your mag lock to the relay output.</li>
+        <li>Find your device's IP address on your local network.</li>
+    </ol>
+
+    <h2>2. Custom Web Page & PIN Management (C++)</h2>
+    <ol>
+        <li>
+            <b>Get the Tasmota Source Code:</b>
+            <pre><code>git clone https://github.com/arendst/Tasmota.git</code></pre>
+        </li>
+        <li>
+            <b>Edit the Web Server Handler:</b>
+            <ul>
+                <li>Open <code>tasmota/xdrv_01_webserver.ino</code> in your IDE.</li>
+                <li>Insert the following code for PIN and master code management:</li>
+            </ul>
+            <pre><code class="language-cpp">#define NUM_PINS 4
+#define PIN_LENGTH 4
+#define MASTER_CODE_LENGTH 8
+const char* master_code = "12345678"; // Change this!
+
+// Helper functions: get_pin, set_pin, is_valid_pin (see full guide)
+
+if (webserver->uri() == F("/lock")) {
+    if (webserver->method() == HTTP_POST) {
+        // Handle admin PIN change
+    }
+    if (webserver->hasArg("pin")) {
+        // Handle unlock
+    }
+    // Serve the HTML form (see full code in guide)
+}
+</code></pre>
+            <div class="note">See the full documentation for the complete code, including input validation and user feedback.</div>
+        </li>
+        <li>
+            <b>Compile and Flash:</b>
+            <ul>
+                <li>Use PlatformIO or Arduino IDE to build the firmware.</li>
+                <li>Flash the binary to your Shelly device.</li>
+            </ul>
+        </li>
+        <li>
+            <b>Access the Web Page:</b>
+            <ul>
+                <li>Go to <code>http://&lt;device-ip&gt;/lock</code> on your LAN.</li>
+                <li>Use the PIN entry to unlock, or the admin section to manage PINs (with the master code).</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h2>3. Berry Scripting for Automation</h2>
+    <p>Use Berry for automation, such as auto-relocking after unlock:</p>
+    <pre><code class="language-python">def on_unlock():
+    print("Unlocked, will re-lock in 10 seconds")
+    timer.set(10, lambda() => power(1))  # Re-lock after 10 seconds
+
+event.power_on = on_unlock
+</code></pre>
+    <div class="note">Upload Berry scripts via the Tasmota web UI (Console &gt; Berry Script).</div>
+
+    <h2>4. Security Tips</h2>
+    <ul>
+        <li><b>Change the master code</b> from the default before flashing.</li>
+        <li><b>Do not display PINs</b> in production (remove from HTML output).</li>
+        <li>Enable Tasmota's web authentication for extra protection.</li>
+        <li>Keep your device on a trusted LAN; do not expose to the internet.</li>
+    </ul>
+
+    <h2>5. Troubleshooting</h2>
+    <div class="troubleshoot">
+        <b>Common Issues:</b>
+        <ul>
+            <li><b>PINS not saving:</b> Ensure <code>SettingsSave(1);</code> is called after changes.</li>
+            <li><b>Unlock not working:</b> Check relay mapping and PIN entry.</li>
+            <li><b>Cannot change PINs:</b> Verify master code and input fields.</li>
+            <li><b>Web page not loading:</b> Check endpoint registration and network.</li>
+        </ul>
+    </div>
+
+    <h2>6. Resources</h2>
+    <ul>
+        <li><a href="https://tasmota.github.io/docs/Berry/" target="_blank">Tasmota Berry Scripting</a></li>
+        <li><a href="https://github.com/arendst/Tasmota" target="_blank">Tasmota Source Code</a></li>
+        <li><a href="https://esphome.io/components/web_server.html" target="_blank">ESPHome Web Server</a></li>
+        <li><a href="https://tasmota.github.io/docs/Custom-Drivers/" target="_blank">Tasmota Custom Drivers/Modules</a></li>
+    </ul>
+</div>
+</body>
+</html> 
